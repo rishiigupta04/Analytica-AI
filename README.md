@@ -16,7 +16,7 @@ enterprise-inspired Multi-Agent Business Intelligence Assistant powered by **Lan
 
 ---
 
-# 🎯 Executive Summary
+# 🎯 Problem Summary
 
 Modern business questions rarely require a single source of information.
 
