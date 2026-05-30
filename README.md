@@ -88,19 +88,16 @@ This project introduces a **Multi-Agent Business Intelligence Architecture** whe
 
 The system follows a **Planning → Execution → Reflection → Compilation** paradigm.
 
-```text
-PLAN
- ↓
-EXECUTE
- ↓
-VALIDATE
- ↓
-COMPILE
- ↓
-REPORT
-```
 
-This mirrors how real-world analysts operate.
+<p align="center">
+  <img src="assets/architecture.png" alt="AnalyticaAI Architecture" width="100%">
+</p>
+
+<p align="center">
+  <em>High-level architecture showing planning, memory, routing, agent execution, reflection, and report generation. This mirrors how real-world analysts operate.</em>
+</p>
+
+
 
 ---
 
