@@ -1,0 +1,25 @@
+# Install with: pip install -r requirements.txt
+
+# Core AI/Agent framework
+langgraph
+langchain
+langchain-groq
+langchain-community
+
+# ── Phase 2: Memory & RAG ──────────────────────────────────────
+chromadb        # Local vector database (persistent memory)
+sentence-transformers  # Free local embeddings (no API key needed)
+
+# Web UI
+streamlit
+
+# Data processing
+pandas
+numpy
+
+# Web search (requires API key)
+tavily-python
+
+# Utilities
+python-dotenv
+tabulate
