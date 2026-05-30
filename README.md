@@ -54,19 +54,7 @@ Traditional AI systems struggle because they attempt to solve everything using o
 
 This project introduces a **Multi-Agent Business Intelligence Architecture** where specialized agents collaborate to:
 
-✔ Plan
-
-✔ Retrieve Memory
-
-✔ Analyze Data
-
-✔ Conduct Research
-
-✔ Generate Visualizations
-
-✔ Validate Outputs
-
-✔ Produce Final Reports
+✔ Plan  ✔ Retrieve Memory  ✔ Analyze Data  ✔ Conduct Research  ✔ Generate Visualizations  ✔ Validate Outputs  ✔ Produce Final Reports
 
 ---
 
