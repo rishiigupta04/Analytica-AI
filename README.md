@@ -5,11 +5,12 @@
   <strong>AI-Powered Business Intelligence Through Collaborative Agentic Workflows</strong>
 </p>
 
-<p align="center">
-  Planning • Memory • RAG • Research • Data Analysis • Visualization • Reflection
-</p>
+<h3 align="center">
+  Planning • Memory • RAG • Research • Data Analysis • Visualization • Validation • Self-Correction 
+</h3>
 
 <p align="center">
+  
   Enterprise-inspired Multi-Agent Business Intelligence Assistant powered by
   <strong>LangGraph</strong>, <strong>RAG</strong>, <strong>ChromaDB</strong>,
   <strong>Human-in-the-Loop Workflows</strong>,
