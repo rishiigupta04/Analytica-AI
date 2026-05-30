@@ -1,13 +1,13 @@
 
 <h1 align="center">🚀 AnalyticaAI</h1>
 
-<p align="center">
-  <strong>AI-Powered Business Intelligence Through Collaborative Agentic Workflows</strong>
-</p>
-
 <h3 align="center">
-  Planning • Memory • RAG • Research • Data Analysis • Visualization • Validation • Self-Correction 
+  <strong>AI-Powered Business Intelligence Through Collaborative Agentic Workflows</strong>
 </h3>
+
+<h5 align="center">
+  Planning • Memory • RAG • Research • Data Analysis • Visualization • Validation • Self-Correction 
+</h5>
 
 <p align="center">
   
