@@ -1,19 +1,38 @@
 
-#       Analytica AI - A Multi-Agent BI Assistant
+<h1 align="center">🚀 AnalyticaAI</h1>
 
-<div align="center">
+<p align="center">
+  <strong>AI-Powered Business Intelligence Through Collaborative Agentic Workflows</strong>
+</p>
 
-### Planning • Memory • RAG • Research • Data Analysis • Visualization • Reflection
+<p align="center">
+  Planning • Memory • RAG • Research • Data Analysis • Visualization • Reflection
+</p>
 
-enterprise-inspired Multi-Agent Business Intelligence Assistant powered by **LangGraph, RAG, ChromaDB, Human-in-the-Loop Workflows, Self-Corrective Reasoning, and Parallel Agent Orchestration**, designed to transform business queries into trustworthy and actionable insights from both **internal** and **external** data sources.
+<p align="center">
+  Enterprise-inspired Multi-Agent Business Intelligence Assistant powered by
+  <strong>LangGraph</strong>, <strong>RAG</strong>, <strong>ChromaDB</strong>,
+  <strong>Human-in-the-Loop Workflows</strong>,
+  <strong>Self-Corrective Reasoning</strong>, and
+  <strong>Parallel Agent Orchestration</strong>,
+  designed to transform complex business queries into trustworthy, explainable,
+  and actionable insights from both internal and external data sources.
+</p>
 
-![Python](https://img.shields.io/badge/Python-3.11+-blue)
-![LangGraph](https://img.shields.io/badge/LangGraph-Agent%20Orchestration-green)
-![Streamlit](https://img.shields.io/badge/Streamlit-Frontend-red)
-![ChromaDB](https://img.shields.io/badge/ChromaDB-Vector%20Store-orange)
-![License](https://img.shields.io/badge/License-MIT-yellow)
+<p align="center">
+   <img src="https://img.shields.io/badge/Multi--Agent-Architecture-blueviolet?style=for-the-badge" />
+   <img src="https://img.shields.io/badge/LangGraph-Agent%20Orchestration-green?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/Python-3.11+-blue?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/Data%20Analysis-Pandas-blue?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/Visualization-Plotly%20%26%20Matplotlib-ff69b4?style=for-the-badge" />
+    <img src="https://img.shields.io/badge/RAG-Knowledge%20Retrieval-purple?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/ChromaDB-Vector%20Memory-orange?style=for-the-badge" />
 
-</div>
+
+</p>
+
+
+
 
 ---
 
