@@ -16,7 +16,7 @@
   <strong>Human-in-the-Loop Workflows</strong>,
   <strong>Self-Corrective Reasoning</strong>, and
   <strong>Parallel Agent Orchestration</strong>,
-  designed to transform complex business queries into trustworthy, explainable,
+  designed to automatically  transform complex business queries into trustworthy, explainable,
   and actionable insights from both internal and external data sources.
 </p>
 
@@ -24,8 +24,6 @@
    <img src="https://img.shields.io/badge/Multi--Agent-Architecture-blueviolet?style=for-the-badge" />
    <img src="https://img.shields.io/badge/LangGraph-Agent%20Orchestration-green?style=for-the-badge" />
   <img src="https://img.shields.io/badge/Python-3.11+-blue?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/Data%20Analysis-Pandas-blue?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/Visualization-Plotly%20%26%20Matplotlib-ff69b4?style=for-the-badge" />
     <img src="https://img.shields.io/badge/RAG-Knowledge%20Retrieval-purple?style=for-the-badge" />
   <img src="https://img.shields.io/badge/ChromaDB-Vector%20Memory-orange?style=for-the-badge" />
 
