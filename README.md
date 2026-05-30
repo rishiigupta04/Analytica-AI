@@ -517,6 +517,8 @@ Why did conversions decrease in Q2?
 
 ✅ Human-in-the-Loop Planning
 
+✅ Self-Correcting Agent
+
 ✅ Context-Aware Memory
 
 ✅ Reflection-Based Validation
@@ -529,7 +531,6 @@ Why did conversions decrease in Q2?
 
 ✅ Explainable Business Reports
 
-✅ Production-Oriented Architecture
 
 
 ---
