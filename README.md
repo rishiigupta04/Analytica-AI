@@ -1,6 +1,7 @@
+<div align="center">
 #  Analytica AI - A Multi-Agent BI Assistant
 
-<div align="center">
+
 
 ### Planning • Memory • RAG • Research • Data Analysis • Visualization • Reflection
 
