@@ -4,7 +4,7 @@
 
 ### Planning • Memory • RAG • Research • Data Analysis • Visualization • Reflection
 
-An enterprise-inspired Business Intelligence Assistant built using **LangGraph**, **Multi-Agent Systems**, **RAG**, **Human-in-the-Loop Approval**, and **Self-Reflection Loops** to generate reliable, explainable, and actionable business insights.
+Enterprise-inspired Multi-Agent Business Intelligence Assistant powered by **LangGraph, RAG, ChromaDB, Human-in-the-Loop Workflows, Reflective Reasoning, and Parallel Agent Orchestration**, designed to transform business queries into trustworthy and actionable insights from both **internal** and **external** data sources.
 
 ![Python](https://img.shields.io/badge/Python-3.11+-blue)
 ![LangGraph](https://img.shields.io/badge/LangGraph-Agent%20Orchestration-green)
