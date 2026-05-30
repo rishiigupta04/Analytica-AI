@@ -1,4 +1,4 @@
-# 🚀 Multi-Agent BI Assistant
+#  Analytica AI - A Multi-Agent BI Assistant
 
 <div align="center">
 
