@@ -216,3 +216,60 @@ def clear_all_sessions() -> int:
 def session_count() -> int:
     """Returns the total number of stored sessions."""
     return _collection.count()
+
+
+def list_sessions(limit: int = 25, offset: int = 0, include_document: bool = False) -> list[dict]:
+    """
+    Returns sessions sorted by newest-first with pagination.
+
+    Args:
+        limit: Max sessions to return.
+        offset: Number of sessions to skip.
+        include_document: Include the stored document text when True.
+    """
+    total = _collection.count()
+    if total == 0:
+        return []
+
+    if limit < 1:
+        limit = 1
+    if offset < 0:
+        offset = 0
+
+    include_fields = ["metadatas", "ids"]
+    if include_document:
+        include_fields.append("documents")
+
+    result = _collection.get(include=include_fields)
+    metadatas = result.get("metadatas", [])
+    ids = result.get("ids", [])
+    documents = result.get("documents", []) if include_document else []
+
+    rows = []
+    for index, meta in enumerate(metadatas):
+        rows.append(
+            {
+                "id": ids[index],
+                "metadata": meta,
+                "document": documents[index] if include_document else "",
+            }
+        )
+
+    rows.sort(key=lambda x: x.get("metadata", {}).get("timestamp", ""), reverse=True)
+    return rows[offset : offset + limit]
+
+
+def get_session_by_id(session_id: str) -> Optional[dict]:
+    """Returns a single session's metadata and document by ID."""
+    if not session_id:
+        return None
+
+    result = _collection.get(ids=[session_id], include=["metadatas", "documents"])
+    if not result.get("ids"):
+        return None
+
+    return {
+        "id": result["ids"][0],
+        "metadata": result.get("metadatas", [None])[0],
+        "document": result.get("documents", [""])[0],
+    }

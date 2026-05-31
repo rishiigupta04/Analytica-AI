@@ -12,6 +12,9 @@ sentence-transformers  # Free local embeddings (no API key needed)
 
 # Web UI
 streamlit
+fastapi
+uvicorn
+python-multipart
 
 # Data processing
 pandas

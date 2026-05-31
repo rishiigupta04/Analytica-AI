@@ -1,43 +1,58 @@
 # =============================================================
-# graph/workflow.py — The LangGraph State Machine (Phase 2)
+# graph/workflow.py — The LangGraph State Machine (Phase 3)
 # =============================================================
-# WHAT CHANGED FROM PHASE 1:
-#   ★ memory_agent node added at the very START
-#   ★ rag_agent node added between research and compiler
-#   ★ save_session node added at the END (writes to ChromaDB)
-#   ★ route_after_coding now routes to "rag_agent" instead of "compiler"
-#     (since rag_agent always runs before compiler now)
+# WHAT CHANGED FROM PHASE 2:
+#   ★ HITL (Human-in-the-Loop) node using interrupt()
+#   ★ Critic nodes: critique_coding + critique_research
+#   ★ Retry routing: agents can loop back up to 2x if critic fails
+#   ★ MemorySaver checkpointer enables graph state persistence
+#     between the pre-HITL and post-HITL Streamlit runs
+#   ★ graph.compile(checkpointer=MemorySaver()) — required for interrupt()
 #
-# NEW COMPLETE FLOW:
+# COMPLETE PHASE 3 FLOW:
+#
 #   START
 #     ↓
-#   [memory_agent]     ← ★ NEW: retrieves past context into state
+#   [memory_agent]            ← retrieves past context
 #     ↓
-#   [planner]          ← reads memory_context, creates plan
-#     ↓ (conditional)
-#   ┌──────────────────────────────────────────────┐
-#   │  has internal tasks + CSV → [coding_agent]   │
-#   │  else                     → [research_agent] │
-#   └──────────────────────────────────────────────┘
-#     ↓ (conditional after coding)
-#   ┌────────────────────────────────────────────────┐
-#   │  has external tasks → [research_agent]         │
-#   │  else               → [rag_agent]  ← ★ changed │
-#   └────────────────────────────────────────────────┘
-#     ↓ (research always goes to rag_agent)
-#   [rag_agent]        ← ★ NEW: retrieves historical comparisons
+#   [planner]                 ← decomposes query + uses memory
 #     ↓
-#   [compiler]         ← reads everything: data, research, memory, rag
+#   ★ [hitl_node]             ← interrupt() fires here
+#     │                          graph PAUSES, Streamlit shows plan
+#     │                          user approves/edits/removes tasks
+#     │                          graph RESUMES with Command(resume=...)
 #     ↓
-#   [save_session]     ← ★ NEW: persists session to ChromaDB
-#     ↓
-#   END
+#   conditional ──────────────────────────────────────────────
+#     │  has internal + CSV  → [coding_agent]
+#     └  else                → [research_agent]
+#              ↓
+#          ★ [critique_coding]
+#              │  conf<0.6 AND retries<2  → [coding_agent] (retry)
+#              └  else                    → [research_agent] or [rag_agent]
+#                       ↓
+#                   [research_agent]
+#                       ↓
+#                ★ [critique_research]
+#                       │  conf<0.6 AND retries<2  → [research_agent] (retry)
+#                       └  else                    → [rag_agent]
+#                                ↓
+#                           [rag_agent]
+#                                ↓
+#                           [compiler]          ← Pydantic structured output
+#                                ↓
+#                           [save_session]      ← persists to ChromaDB
+#                                ↓
+#                             END
 # =============================================================
 
+import uuid
+from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
+from langgraph.types import Command, interrupt
 
 from agents.coding_agent import coding_agent
 from agents.compiler import compiler_agent
+from agents.critic_agent import critique_coding, critique_research
 from agents.memory_agent import memory_agent
 from agents.planner import planner_agent
 from agents.rag_agent import rag_agent
@@ -47,60 +62,141 @@ from state import MarketingState
 
 
 # ──────────────────────────────────────────────────────────────
+# ★ HITL NODE
+# ──────────────────────────────────────────────────────────────
+
+def hitl_node(state: MarketingState) -> dict:
+    """
+    Human-in-the-Loop Gate Node.
+
+    Calls interrupt() which PAUSES graph execution and hands
+    control back to the calling code (app.py).
+
+    app.py receives the interrupt payload, shows it in the UI,
+    collects user input, then resumes the graph with:
+        graph.stream(Command(resume={"plan": approved_plan}), config=config)
+
+    The hitl_node then receives that resume value and uses it
+    to update the state before the graph continues.
+
+    Reads:  state["plan"], state["query"], state["memory_context"]
+    Writes: state["plan"], state["internal_tasks"],
+            state["external_tasks"], state["plan_approved"]
+    """
+    print("\n🧑‍✈️ [HITL] Pausing for human plan review...")
+
+    # interrupt() pauses the graph and sends this payload to the caller.
+    # The caller receives it in the __interrupt__ event during streaming.
+    user_response = interrupt({
+        "plan": state["plan"],
+        "query": state["query"],
+        "memory_context": state.get("memory_context", ""),
+        "has_data": bool(state.get("data_path")),
+        "message": "Review the plan below. You may edit tasks or their sources before approving.",
+    })
+
+    # user_response = {"plan": [...potentially edited plan...]}
+    # This value comes from Command(resume={...}) in app.py
+    approved_plan = user_response.get("plan", state["plan"])
+    has_data = bool(state.get("data_path"))
+
+    # Recompute routing lists from the user-approved (possibly edited) plan
+    internal_tasks = [
+        t for t in approved_plan
+        if t["source"] in ("INTERNAL", "BOTH") and has_data
+    ]
+    external_tasks = [
+        t for t in approved_plan
+        if t["source"] in ("EXTERNAL", "BOTH")
+    ]
+
+    print(f"   ✅ Plan approved: {len(approved_plan)} task(s) "
+          f"({len(internal_tasks)} internal, {len(external_tasks)} external)")
+
+    return {
+        "plan": approved_plan,
+        "internal_tasks": internal_tasks,
+        "external_tasks": external_tasks,
+        "plan_approved": True,
+    }
+
+
+# ──────────────────────────────────────────────────────────────
 # ROUTING FUNCTIONS
 # ──────────────────────────────────────────────────────────────
 
-def route_after_planner(state: MarketingState) -> str:
-    """After Planner: go to Coding Agent or skip to Research?"""
+def route_after_hitl(state: MarketingState) -> str:
+    """After HITL approval: coding or research?"""
     has_internal = bool(state.get("internal_tasks"))
     has_data = bool(state.get("data_path"))
 
     if has_internal and has_data:
-        print("   🔀 [ROUTER] Planner → Coding Agent")
+        print("   🔀 [ROUTER] HITL → Coding Agent")
         return "coding_agent"
     else:
-        print("   🔀 [ROUTER] Planner → Research Agent")
+        print("   🔀 [ROUTER] HITL → Research Agent")
         return "research_agent"
 
 
-def route_after_coding(state: MarketingState) -> str:
+def route_after_coding_critique(state: MarketingState) -> str:
     """
-    After Coding Agent: go to Research Agent or skip to RAG Agent?
-    (Phase 2: skip target changed from "compiler" to "rag_agent")
+    After Coding Critique:
+      - Low confidence + retries left  → retry coding_agent
+      - Otherwise                       → research_agent or rag_agent
     """
+    confidence  = state.get("coding_confidence", 1.0)
+    retry_count = state.get("coding_retry_count", 0)
     has_external = bool(state.get("external_tasks"))
 
-    if has_external:
-        print("   🔀 [ROUTER] Coding Agent → Research Agent")
-        return "research_agent"
+    if confidence < 0.6 and retry_count < 2:
+        print(f"   🔀 [ROUTER] Critique → Coding Retry "
+              f"(confidence={confidence:.0%}, attempt {retry_count+1}/3)")
+        return "coding_agent"
+
+    if confidence < 0.6:
+        print(f"   🔀 [ROUTER] Critique → Proceeding despite low confidence "
+              f"(max retries reached)")
     else:
-        print("   🔀 [ROUTER] Coding Agent → RAG Agent (no web research needed)")
-        return "rag_agent"
+        print(f"   🔀 [ROUTER] Critique → Passed (confidence={confidence:.0%})")
+
+    if has_external:
+        return "research_agent"
+    return "rag_agent"
+
+
+def route_after_research_critique(state: MarketingState) -> str:
+    """
+    After Research Critique:
+      - Low confidence + retries left  → retry research_agent
+      - Otherwise                       → rag_agent
+    """
+    confidence  = state.get("research_confidence", 1.0)
+    retry_count = state.get("research_retry_count", 0)
+
+    if confidence < 0.6 and retry_count < 2:
+        print(f"   🔀 [ROUTER] Critique → Research Retry "
+              f"(confidence={confidence:.0%}, attempt {retry_count+1}/3)")
+        return "research_agent"
+
+    if confidence < 0.6:
+        print(f"   🔀 [ROUTER] Critique → Proceeding despite low confidence")
+    else:
+        print(f"   🔀 [ROUTER] Critique → Passed (confidence={confidence:.0%})")
+
+    return "rag_agent"
 
 
 # ──────────────────────────────────────────────────────────────
 # SAVE SESSION NODE
-# Defined here (not in agents/) because it's more of a graph
-# lifecycle step than a true "agent" — it has no LLM call.
 # ──────────────────────────────────────────────────────────────
 
 def save_session_node(state: MarketingState) -> dict:
-    """
-    Save Session Node.
-
-    Runs after compiler. Persists the full session to ChromaDB
-    so future runs can retrieve it via memory_agent and rag_agent.
-
-    Reads:  state["query"], state["coding_output"],
-            state["research_output"], state["final_report"]
-    Writes: nothing to state (returns {} — state unchanged)
-    """
+    """Persists completed session to ChromaDB. Terminal node."""
     print("\n💾 [SAVE SESSION] Persisting session to memory store...")
-
-    # Only save if we have a completed report
     final_report = state.get("final_report", "")
+
     if not final_report or len(final_report) < 50:
-        print("   ⚠️  Report too short or empty — skipping save.")
+        print("   ⚠️  Report too short — skipping save.")
         return {}
 
     try:
@@ -110,79 +206,100 @@ def save_session_node(state: MarketingState) -> dict:
             research_output=state.get("research_output", ""),
             final_report=final_report,
         )
-        print(f"   ✅ Saved as: {session_id}")
         total = store.session_count()
-        print(f"   📚 Total sessions in memory: {total}")
+        print(f"   ✅ Saved as: {session_id} (total sessions: {total})")
     except Exception as e:
-        # Never let a save failure crash the app — just log it
-        print(f"   ❌ Failed to save session: {e}")
+        print(f"   ❌ Save failed: {e}")
 
-    return {}  # No state updates — session is already complete
+    return {}
 
 
 # ──────────────────────────────────────────────────────────────
-# GRAPH BUILDER
+# ★ GRAPH BUILDER — with MemorySaver for HITL interrupt support
 # ──────────────────────────────────────────────────────────────
 
 def build_graph():
     """
-    Builds and compiles the Phase 2 LangGraph StateGraph.
+    Builds the Phase 3 LangGraph pipeline.
+
+    KEY DIFFERENCE from Phase 2:
+        graph.compile(checkpointer=MemorySaver())
+
+    The MemorySaver stores graph state snapshots indexed by thread_id.
+    When interrupt() fires and the graph pauses, the MemorySaver
+    holds the full state. When Command(resume=...) is called later
+    with the same thread_id, the graph resumes from that snapshot.
+
+    IMPORTANT for Streamlit: Cache the compiled graph in
+    st.session_state so the same MemorySaver instance is reused
+    across Streamlit re-runs (otherwise the checkpoint is lost).
 
     Returns:
-        CompiledStateGraph: Ready to use with .stream() or .invoke()
+        CompiledStateGraph: Ready to use with .stream()
     """
     graph = StateGraph(MarketingState)
 
-    # ── Register all nodes ─────────────────────────────────────
-    graph.add_node("memory_agent",   memory_agent)    # ★ Phase 2
-    graph.add_node("planner",        planner_agent)
-    graph.add_node("coding_agent",   coding_agent)
-    graph.add_node("research_agent", research_agent)
-    graph.add_node("rag_agent",      rag_agent)       # ★ Phase 2
-    graph.add_node("compiler",       compiler_agent)
-    graph.add_node("save_session",   save_session_node)  # ★ Phase 2
+    # ── Register nodes ─────────────────────────────────────────
+    graph.add_node("memory_agent",       memory_agent)
+    graph.add_node("planner",            planner_agent)
+    graph.add_node("hitl_node",          hitl_node)         # ★ Phase 3
+    graph.add_node("coding_agent",       coding_agent)
+    graph.add_node("critique_coding",    critique_coding)   # ★ Phase 3
+    graph.add_node("research_agent",     research_agent)
+    graph.add_node("critique_research",  critique_research) # ★ Phase 3
+    graph.add_node("rag_agent",          rag_agent)
+    graph.add_node("compiler",           compiler_agent)
+    graph.add_node("save_session",       save_session_node)
 
     # ── Edges ──────────────────────────────────────────────────
-
-    # ★ Pipeline now starts with memory_agent (not planner)
     graph.add_edge(START, "memory_agent")
-
-    # memory_agent always goes to planner
     graph.add_edge("memory_agent", "planner")
 
-    # Planner: conditional routing (same as Phase 1)
+    # ★ Planner now always goes to HITL (not directly to routing)
+    graph.add_edge("planner", "hitl_node")
+
+    # After HITL: route to coding or research
     graph.add_conditional_edges(
-        "planner",
-        route_after_planner,
+        "hitl_node",
+        route_after_hitl,
         {
             "coding_agent":   "coding_agent",
             "research_agent": "research_agent",
         },
     )
 
-    # Coding Agent: conditional routing
-    # ★ Changed: fallback now goes to "rag_agent" instead of "compiler"
+    # After coding: always critique
+    graph.add_edge("coding_agent", "critique_coding")
+
+    # After critique_coding: retry, continue to research, or skip to rag
     graph.add_conditional_edges(
-        "coding_agent",
-        route_after_coding,
+        "critique_coding",
+        route_after_coding_critique,
         {
-            "research_agent": "research_agent",
-            "rag_agent":      "rag_agent",      # ★ changed from "compiler"
+            "coding_agent":   "coding_agent",    # retry
+            "research_agent": "research_agent",  # proceed with research
+            "rag_agent":      "rag_agent",        # skip research
         },
     )
 
-    # Research always goes to rag_agent (★ changed from "compiler")
-    graph.add_edge("research_agent", "rag_agent")
+    # After research: always critique
+    graph.add_edge("research_agent", "critique_research")
 
-    # ★ rag_agent always goes to compiler
-    graph.add_edge("rag_agent", "compiler")
+    # After critique_research: retry or proceed to rag
+    graph.add_conditional_edges(
+        "critique_research",
+        route_after_research_critique,
+        {
+            "research_agent": "research_agent",  # retry
+            "rag_agent":      "rag_agent",        # proceed
+        },
+    )
 
-    # ★ compiler goes to save_session (not END)
-    graph.add_edge("compiler", "save_session")
+    graph.add_edge("rag_agent",      "compiler")
+    graph.add_edge("compiler",       "save_session")
+    graph.add_edge("save_session",   END)
 
-    # ★ save_session is the new terminal node
-    graph.add_edge("save_session", END)
-
-    compiled = graph.compile()
-    print("✅ [GRAPH] Phase 2 LangGraph pipeline compiled successfully.")
+    # ★ MemorySaver: required for interrupt() / HITL to work
+    compiled = graph.compile(checkpointer=MemorySaver())
+    print("✅ [GRAPH] Phase 3 LangGraph pipeline compiled with MemorySaver.")
     return compiled

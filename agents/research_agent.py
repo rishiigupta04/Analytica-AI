@@ -1,24 +1,16 @@
 # =============================================================
-# agents/research_agent.py — The Research Agent
+# agents/research_agent.py — The Research Agent (Phase 3 — updated)
 # =============================================================
-# ROLE: Web researcher for external marketing knowledge.
-#
-# WHAT IT DOES:
-#   For each external_task from the Planner:
-#     1. Asks the LLM to create an optimized search query
-#     2. Runs a Tavily search (requires API key)
-#     3. Asks the LLM to summarize the results relevantly
-#   Returns a combined research summary string.
-#
-# WHY TAVILY:
-#   - Higher relevance for marketing research
-#   - Structured results with titles and URLs
-#   - Requires TAVILY_API_KEY
+# WHAT CHANGED FROM PHASE 2:
+#   ★ Reads state["research_retry_count"] — retry awareness
+#   ★ Reads state["critic_research_feedback"] — targeted improvement
+#   ★ Increments research_retry_count in return value
+#   ★ On retry: narrows search query based on critic's feedback
+#     and refines the summarization prompt
 # =============================================================
 
-import os
 import time
-from langchain_community.tools import TavilySearchResults
+from langchain_community.tools import DuckDuckGoSearchRun
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from state import MarketingState
@@ -27,105 +19,94 @@ from utils.llm import get_llm
 
 def research_agent(state: MarketingState) -> dict:
     """
-    Research Agent Node.
+    Research Agent Node (Phase 3).
 
-    Reads:  state["external_tasks"]
-    Writes: state["research_output"]
+    Reads:  state["external_tasks"],
+            state["research_retry_count"] ★, state["critic_research_feedback"] ★
+    Writes: state["research_output"], state["research_retry_count"] ★
     """
-
-    # ── Guard: skip if no external research needed ─────────────
     if not state.get("external_tasks"):
-        print("   ⏭️  [RESEARCH AGENT] No external tasks — skipping.")
-        return {"research_output": "No external research required for this query."}
+        return {
+            "research_output": "No external research required for this query.",
+            "research_retry_count": 0,
+        }
 
-    if not os.getenv("TAVILY_API_KEY"):
-        print("   ⏭️  [RESEARCH AGENT] TAVILY_API_KEY not set — skipping.")
-        return {"research_output": "External research skipped: TAVILY_API_KEY is not set."}
+    # ★ Phase 3: retry awareness
+    retry_count = state.get("research_retry_count", 0)
+    critic_feedback = state.get("critic_research_feedback", "")
 
-    print(f"\n🔍 [RESEARCH AGENT] Researching {len(state['external_tasks'])} task(s)...")
+    attempt_label = f"attempt {retry_count + 1}/3" if retry_count > 0 else "first attempt"
+    print(f"\n🔍 [RESEARCH AGENT] {attempt_label} — "
+          f"{len(state['external_tasks'])} task(s)")
 
     llm = get_llm(temperature=0)
-    search = TavilySearchResults(max_results=6)
+    search = DuckDuckGoSearchRun()
     all_findings = []
 
-    def format_search_results(results) -> str:
-        if isinstance(results, str):
-            return results
-        if isinstance(results, dict):
-            return "\n".join(f"{key}: {value}" for key, value in results.items())
-        if isinstance(results, list):
-            lines = []
-            for item in results:
-                if isinstance(item, dict):
-                    title = item.get("title") or item.get("name") or "Result"
-                    url = item.get("url") or item.get("link") or ""
-                    content = item.get("content") or item.get("snippet") or ""
-                    line = f"- {title}\n  {url}\n  {content}".strip()
-                    lines.append(line)
-                else:
-                    lines.append(str(item))
-            return "\n".join(lines) if lines else str(results)
-        return str(results)
+    # ★ Build retry improvement note for the summarization prompt
+    retry_note = ""
+    if retry_count > 0 and critic_feedback:
+        retry_note = (
+            f"\n\n⚠️ QUALITY IMPROVEMENT REQUIRED:\n"
+            f"Previous research was flagged: {critic_feedback}\n"
+            f"This time: find MORE SPECIFIC data — include statistics, "
+            f"percentages, named strategies, and year references."
+        )
 
     for task in state["external_tasks"]:
         print(f"   🌐 Researching: {task['task'][:60]}...")
 
-        # ── Step 1: Generate an optimized search query ─────────
-        # The task description might be long — we need a tight search query
+        # Step 1: Generate optimized search query
+        # ★ On retry, prompt for more specific/different query
+        query_sys = (
+            "You generate precise DuckDuckGo search queries (4-7 words). "
+            "Return ONLY the query string — no quotes, no boolean operators."
+        )
+        if retry_count > 0:
+            query_sys += (
+                " This is a RETRY. Generate a MORE SPECIFIC query than before. "
+                "Focus on data, statistics, or named strategies."
+            )
+
         query_response = llm.invoke([
-            SystemMessage(
-                content=(
-                    "You generate short, precise search queries for Tavily. "
-                    "Return ONLY the query string — 4 to 7 words. "
-                    "Focus on the marketing concept being asked about, include a year if recency matters. "
-                    "Prefer terms that surface benchmarks, statistics, or best practices. "
-                    "Do not add quotes, boolean operators, or site: filters."
-                )
-            ),
-            HumanMessage(content=f"Create a search query for this task:\n{task['task']}"),
+            SystemMessage(content=query_sys),
+            HumanMessage(content=f"Create search query for: {task['task']}"),
         ])
         search_query = query_response.content.strip().strip('"')
-        print(f"   🔎 Search query: '{search_query}'")
+        print(f"   🔎 Query: '{search_query}'")
 
-        # ── Step 2: Run Tavily search ──────────────────────────
+        # Step 2: Run search
         try:
-            raw_results = search.run(search_query)
-            search_results = format_search_results(raw_results)
+            search_results = search.run(search_query)
         except Exception as search_err:
             search_results = f"Search failed: {search_err}"
             print(f"   ⚠️  Search error: {search_err}")
 
-        # ── Step 3: Summarize and filter results ───────────────
+        # Step 3: Summarize
         summary_response = llm.invoke([
-            SystemMessage(
-                content=(
-                    "You are a senior marketing research analyst. "
-                    "Summarize the search results below to directly answer the given task. "
-                    "Be concise but specific — include actual statistics, years, or source names when present. "
-                    "Flag uncertainty explicitly if the evidence is thin or conflicting. "
-                    "Format your response as:\n"
-                    "TASK: [restate the task in one line]\n"
-                    "FINDINGS: [2-4 bullet points of key insights]\n"
-                    "If the results don't answer the task well, say so honestly."
-                )
-            ),
-            HumanMessage(
-                content=(
-                    f"Task: {task['task']}\n\n"
-                    f"Search Query Used: {search_query}\n\n"
-                    f"Search Results:\n{search_results}"
-                )
-            ),
+            SystemMessage(content=(
+                "You are a senior marketing research analyst. "
+                "Summarize search results to directly answer the task. "
+                "Include SPECIFIC data: percentages, statistics, named tools/strategies. "
+                "Format:\n"
+                "TASK: [restate task]\n"
+                "FINDINGS:\n• [specific finding with data]\n• [another finding]"
+                f"{retry_note}"
+            )),
+            HumanMessage(content=(
+                f"Task: {task['task']}\n\n"
+                f"Search Results:\n{search_results}"
+            )),
         ])
 
         all_findings.append(summary_response.content.strip())
-        print(f"   ✅ Task {task['id']} research complete.")
+        print(f"   ✅ Task {task['id']} researched.")
 
-        # Small delay to avoid rate limiting when multiple tasks run
         if len(state["external_tasks"]) > 1:
             time.sleep(1.5)
 
     combined = "\n\n" + "─" * 50 + "\n\n".join(all_findings)
     return {
-        "research_output": f"=== 🌐 Market Research Findings ===\n{combined}"
+        "research_output": f"=== 🌐 Market Research Findings ===\n{combined}",
+        "research_retry_count": retry_count + 1,   # ★ increment
     }

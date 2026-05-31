@@ -1,16 +1,37 @@
 # =============================================================
-# state.py — The Shared State (Phase 2 — updated)
+# state.py — The Shared State (Phase 3 — updated)
 # =============================================================
-# WHAT CHANGED FROM PHASE 1:
-#   Two new fields added:
-#     memory_context → written by memory_agent (before planner)
-#     rag_context    → written by rag_agent (before compiler)
+# WHAT CHANGED FROM PHASE 2:
+#   Phase 3 adds 8 new fields to support:
+#     ★ HITL (Human-in-the-Loop) plan approval gate
+#     ★ Critic Agent validation + retry logic
 #
-# These two fields carry historical intelligence from ChromaDB
-# into the current pipeline run. All other fields unchanged.
+# FULL FIELD MAP:
+#   ┌─ INPUT ─────────────────────────────────────────────────┐
+#   │  query, data_path                                        │
+#   ├─ PHASE 2: MEMORY ───────────────────────────────────────┤
+#   │  memory_context, rag_context                             │
+#   ├─ PLANNER OUTPUT ────────────────────────────────────────┤
+#   │  plan, internal_tasks, external_tasks                    │
+#   ├─ ★ PHASE 3: HITL ───────────────────────────────────────┤
+#   │  plan_approved        → set True by HITL node            │
+#   ├─ ★ PHASE 3: CRITIC ─────────────────────────────────────┤
+#   │  critic_flags         → accumulated issues list          │
+#   │  coding_retry_count   → how many times coding ran        │
+#   │  research_retry_count → how many times research ran      │
+#   │  coding_confidence    → critic score for coding (0-1)    │
+#   │  research_confidence  → critic score for research (0-1)  │
+#   │  critic_coding_feedback   → hint for coding on retry     │
+#   │  critic_research_feedback → hint for research on retry   │
+#   ├─ AGENT OUTPUTS ─────────────────────────────────────────┤
+#   │  coding_output, research_output                          │
+#   ├─ FINAL OUTPUT ──────────────────────────────────────────┤
+#   │  final_report                                            │
+#   └─ ERROR ─────────────────────────────────────────────────┘
+#      error
 # =============================================================
 
-from typing import TypedDict, List, Optional
+from typing import List, Optional, TypedDict
 
 
 class SubTask(TypedDict):
@@ -28,36 +49,39 @@ class SubTask(TypedDict):
 
 
 class MarketingState(TypedDict):
-    """
-    Complete state object flowing through the LangGraph pipeline.
-
-    Phase 2 additions marked with ★
-    """
+    """Complete state flowing through the LangGraph pipeline."""
 
     # ── INPUT ─────────────────────────────────────────────────
-    query: str                  # The marketer's original question
-    data_path: Optional[str]    # Path to uploaded CSV (or None)
+    query: str
+    data_path: Optional[str]
 
-    # ── ★ PHASE 2: MEMORY & RAG ───────────────────────────────
-    memory_context: str         # Written by memory_agent BEFORE planner
-                                # Contains: relevant past session summaries
-                                # Used by: planner (better planning) + compiler
-
-    rag_context: str            # Written by rag_agent BEFORE compiler
-                                # Contains: historical comparison data points
-                                # Used by: compiler (trend analysis in report)
+    # ── PHASE 2: MEMORY & RAG ─────────────────────────────────
+    memory_context: str     # From memory_agent — past session summaries
+    rag_context: str        # From rag_agent — historical comparison data
 
     # ── PLANNER OUTPUT ────────────────────────────────────────
-    plan: List[SubTask]             # Full decomposed plan
-    internal_tasks: List[SubTask]   # Tasks needing CSV analysis
-    external_tasks: List[SubTask]   # Tasks needing web research
+    plan: List[SubTask]
+    internal_tasks: List[SubTask]
+    external_tasks: List[SubTask]
+
+    # ── ★ PHASE 3: HITL ───────────────────────────────────────
+    plan_approved: bool     # True after user approves in HITL gate
+
+    # ── ★ PHASE 3: CRITIC ─────────────────────────────────────
+    critic_flags: List[str]        # Accumulated quality issues (shown in report)
+    coding_retry_count: int        # Times coding agent has run (0 = first run)
+    research_retry_count: int      # Times research agent has run (0 = first run)
+    coding_confidence: float       # Critic's quality score for coding (0.0–1.0)
+    research_confidence: float     # Critic's quality score for research (0.0–1.0)
+    critic_coding_feedback: str    # Specific feedback for coding retry prompt
+    critic_research_feedback: str  # Specific feedback for research retry prompt
 
     # ── AGENT OUTPUTS ─────────────────────────────────────────
-    coding_output: str      # Coding Agent's data analysis results
-    research_output: str    # Research Agent's web findings
+    coding_output: str
+    research_output: str
 
     # ── FINAL OUTPUT ──────────────────────────────────────────
-    final_report: str       # Compiled report shown to marketer
+    final_report: str
 
     # ── ERROR TRACKING ────────────────────────────────────────
-    error: Optional[str]    # Any error message (None = no error)
+    error: Optional[str]

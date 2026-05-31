@@ -16,7 +16,7 @@
   <strong>Human-in-the-Loop Workflows</strong>,
   <strong>Self-Corrective Reasoning</strong>, and
   <strong>Parallel Agent Orchestration</strong>,
-  designed to transform complex business queries into trustworthy, explainable,
+  designed to automatically  transform complex business queries into trustworthy, explainable,
   and actionable insights from both internal and external data sources.
 </p>
 
@@ -24,8 +24,6 @@
    <img src="https://img.shields.io/badge/Multi--Agent-Architecture-blueviolet?style=for-the-badge" />
    <img src="https://img.shields.io/badge/LangGraph-Agent%20Orchestration-green?style=for-the-badge" />
   <img src="https://img.shields.io/badge/Python-3.11+-blue?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/Data%20Analysis-Pandas-blue?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/Visualization-Plotly%20%26%20Matplotlib-ff69b4?style=for-the-badge" />
     <img src="https://img.shields.io/badge/RAG-Knowledge%20Retrieval-purple?style=for-the-badge" />
   <img src="https://img.shields.io/badge/ChromaDB-Vector%20Memory-orange?style=for-the-badge" />
 
@@ -54,19 +52,7 @@ Traditional AI systems struggle because they attempt to solve everything using o
 
 This project introduces a **Multi-Agent Business Intelligence Architecture** where specialized agents collaborate to:
 
-✔ Plan
-
-✔ Retrieve Memory
-
-✔ Analyze Data
-
-✔ Conduct Research
-
-✔ Generate Visualizations
-
-✔ Validate Outputs
-
-✔ Produce Final Reports
+✔ Plan  ✔ Retrieve Memory  ✔ Analyze Data  ✔ Conduct Research  ✔ Generate Visualizations  ✔ Validate Outputs  ✔ Produce Final Reports
 
 ---
 
@@ -88,19 +74,16 @@ This project introduces a **Multi-Agent Business Intelligence Architecture** whe
 
 The system follows a **Planning → Execution → Reflection → Compilation** paradigm.
 
-```text
-PLAN
- ↓
-EXECUTE
- ↓
-VALIDATE
- ↓
-COMPILE
- ↓
-REPORT
-```
 
-This mirrors how real-world analysts operate.
+<p align="center">
+  <img src="assets/architecture.png" alt="AnalyticaAI Architecture" width="100%">
+</p>
+
+<p align="center">
+  <em>High-level architecture showing planning, memory, routing, agent execution, reflection, and report generation. This mirrors how real-world analysts operate.</em>
+</p>
+
+
 
 ---
 
@@ -532,6 +515,8 @@ Why did conversions decrease in Q2?
 
 ✅ Human-in-the-Loop Planning
 
+✅ Self-Correcting Agent
+
 ✅ Context-Aware Memory
 
 ✅ Reflection-Based Validation
@@ -544,7 +529,6 @@ Why did conversions decrease in Q2?
 
 ✅ Explainable Business Reports
 
-✅ Production-Oriented Architecture
 
 
 ---
