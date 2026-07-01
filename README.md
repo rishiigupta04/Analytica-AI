@@ -76,7 +76,7 @@ The system follows a **Planning → Execution → Reflection → Compilation** p
 
 
 <p align="center">
-  <img src="assets/architecture.png" alt="AnalyticaAI Architecture" width="100%">
+  <img src="assets/analytica.png" alt="AnalyticaAI Architecture" width="100%">
 </p>
 
 <p align="center">
